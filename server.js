@@ -56,23 +56,17 @@ io.on("connection", (socket) => {
       rooms.set(roomId, { elements: [], version: 0 });
     }
 
-    const state = rooms.get(roomId);
-    console.log(`[join-room] socket=${socket.id} room=${roomId} elements=${state.elements.length} version=${state.version}`);
-    socket.emit("room-init", state);
+    socket.emit("room-init", rooms.get(roomId));
   });
 
   socket.on("scene-update", ({ roomId, elements, version }) => {
+    if (!rooms.has(roomId)) return;
+
     const room = rooms.get(roomId);
-    console.log(`[scene-update] socket=${socket.id} room=${roomId} elements=${elements?.length} version=${version} room.version=${room?.version}`);
-
-    if (!room || version < room.version) {
-      console.log(`[scene-update] REJECTED version=${version} room.version=${room?.version}`);
-      return;
-    }
-
-    rooms.set(roomId, { elements, version });
+    const newVersion = Math.max(room.version, version ?? 0) + 1;
+    rooms.set(roomId, { elements, version: newVersion });
     scheduleSave(rooms);
-    socket.to(roomId).emit("scene-update", { elements, version });
+    socket.to(roomId).emit("scene-update", { elements, version: newVersion });
   });
 
   socket.on("pointer-update", ({ roomId, pointer, button, selectedElementIds, username }) => {
