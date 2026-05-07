@@ -56,12 +56,19 @@ io.on("connection", (socket) => {
       rooms.set(roomId, { elements: [], version: 0 });
     }
 
-    socket.emit("room-init", rooms.get(roomId));
+    const state = rooms.get(roomId);
+    console.log(`[join-room] socket=${socket.id} room=${roomId} elements=${state.elements.length} version=${state.version}`);
+    socket.emit("room-init", state);
   });
 
   socket.on("scene-update", ({ roomId, elements, version }) => {
     const room = rooms.get(roomId);
-    if (!room || version < room.version) return;
+    console.log(`[scene-update] socket=${socket.id} room=${roomId} elements=${elements?.length} version=${version} room.version=${room?.version}`);
+
+    if (!room || version < room.version) {
+      console.log(`[scene-update] REJECTED version=${version} room.version=${room?.version}`);
+      return;
+    }
 
     rooms.set(roomId, { elements, version });
     scheduleSave(rooms);
