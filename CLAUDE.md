@@ -2,17 +2,28 @@
 
 Collaborative whiteboard app. Backend here (Node.js + Express + Socket.io), deployed on Render.
 
+## Repos
+- **Backend (this):** https://github.com/kridipong/team-board-room → deployed at https://team-board-room.onrender.com
+- **Frontend:** https://github.com/kridipong/team-board → deployed at https://team-board-ten-red.vercel.app
+
 ## Architecture
-- `server.js` — main server, Socket.io rooms, scene-update/pointer-update events, persists to `rooms.json`
-- `index.js` — entry point for Render (just requires server.js)
-- Frontend is a separate repo (React + Excalidraw), NOT in this repo yet
+- `server.js` — Socket.io room server, persists scene to `rooms.json` on disk
+- `index.js` — entry point for Render
+- Frontend: Next.js 16 + Excalidraw 0.18 + socket.io-client
+- Key frontend file: `app/components/Board.tsx`
 
-## Active Bug
-When a second user joins a room, the board becomes read-only for ALL users — nobody can draw.
-- Server-side has been ruled out (no read-only concept on server)
-- Bug is in the **frontend** — likely in the `room-init` or `scene-update` handler triggering view-only mode when a second user is detected
-- **Next step: push frontend code to GitHub so we can read and fix it**
+## Known issue (still wonky, to be fixed)
+Real-time sync between users is partially working but still has edge cases:
+- Drawings mostly sync but there may still be occasional overwrite/flicker issues
+- Root cause area: `handleChange` fingerprint-based echo prevention in `Board.tsx`
+- The fingerprint approach (`element ID + version`) prevents re-broadcasting remote updates,
+  but concurrent draws from two users may still conflict (last-writer-wins on the server)
 
-## What was fixed
-- Render deploy: was running `node index.js`, fixed by adding `index.js` entry point
-- Version conflict: server was rejecting scene-updates from second user due to version mismatch — now server manages its own authoritative version
+## What was fixed so far
+- Render deploy: added `index.js` entry point
+- Version conflict: server now manages its own authoritative version counter
+- Echo loop: replaced `requestAnimationFrame` flag with content fingerprinting in `Board.tsx`
+
+## How to deploy changes
+- **Backend:** push to `master` → Render auto-deploys
+- **Frontend:** run `vercel --prod --yes` from `~/Desktop/team-board` (needs Node 20 via nvm)
