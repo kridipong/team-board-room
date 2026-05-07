@@ -2,6 +2,8 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 app.use(cors());
@@ -12,8 +14,36 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-// In-memory room state: roomId -> { elements, version }
-const rooms = new Map();
+const DATA_FILE = path.join(__dirname, "rooms.json");
+
+// Load persisted state from disk on startup
+function loadRooms() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+      return new Map(Object.entries(data));
+    }
+  } catch (e) {
+    console.error("Failed to load rooms from disk:", e.message);
+  }
+  return new Map();
+}
+
+// Debounced save so we don't hammer disk on every stroke
+let saveTimer = null;
+function scheduleSave(rooms) {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      const obj = Object.fromEntries(rooms);
+      fs.writeFileSync(DATA_FILE, JSON.stringify(obj), "utf8");
+    } catch (e) {
+      console.error("Failed to save rooms to disk:", e.message);
+    }
+  }, 1000);
+}
+
+const rooms = loadRooms();
 
 io.on("connection", (socket) => {
   let currentRoom = null;
@@ -26,7 +56,6 @@ io.on("connection", (socket) => {
       rooms.set(roomId, { elements: [], version: 0 });
     }
 
-    // Send existing scene to the new joiner
     socket.emit("room-init", rooms.get(roomId));
   });
 
@@ -35,7 +64,7 @@ io.on("connection", (socket) => {
     if (!room || version < room.version) return;
 
     rooms.set(roomId, { elements, version });
-    // Broadcast to everyone else in the room
+    scheduleSave(rooms);
     socket.to(roomId).emit("scene-update", { elements, version });
   });
 
