@@ -1,29 +1,35 @@
-# Team Board Room
+# Team Board Room — Backend
 
-Collaborative whiteboard app. Backend here (Node.js + Express + Socket.io), deployed on Render.
+Node.js + Express + Socket.io server for the collaborative whiteboard app.
 
-## Repos
-- **Backend (this):** https://github.com/kridipong/team-board-room → deployed at https://team-board-room.onrender.com
-- **Frontend:** https://github.com/kridipong/team-board → deployed at https://team-board-ten-red.vercel.app
+## Repos & Deployments
+- **Backend (this):** https://github.com/kridipong/team-board-room → https://team-board-room.onrender.com
+- **Frontend:** https://github.com/kridipong/team-board → https://team-board-ten-red.vercel.app
 
 ## Architecture
-- `server.js` — Socket.io room server, persists scene to `rooms.json` on disk
-- `index.js` — entry point for Render
-- Frontend: Next.js 16 + Excalidraw 0.18 + socket.io-client
-- Key frontend file: `app/components/Board.tsx`
+- `server.js` — Socket.io room server, persists scene to `rooms.json` on disk (debounced, 1s)
+- `index.js` — entry point for Render (just requires server.js)
+- Rooms identified by `roomId` (currently always `"main"`)
+- Server manages its own authoritative version counter (always increments, never rejects)
 
-## Known issue (still wonky, to be fixed)
-Real-time sync between users is partially working but still has edge cases:
-- Drawings mostly sync but there may still be occasional overwrite/flicker issues
-- Root cause area: `handleChange` fingerprint-based echo prevention in `Board.tsx`
-- The fingerprint approach (`element ID + version`) prevents re-broadcasting remote updates,
-  but concurrent draws from two users may still conflict (last-writer-wins on the server)
+## Socket events
+| Event | Direction | Payload |
+|---|---|---|
+| `join-room` | client → server | `{ roomId }` |
+| `room-init` | server → client | `{ elements, version }` |
+| `scene-update` | both | `{ roomId, elements, version }` |
+| `pointer-update` | both | `{ roomId, pointer, button, selectedElementIds, username }` |
+| `user-left` | server → client | `{ socketId }` |
 
-## What was fixed so far
-- Render deploy: added `index.js` entry point
-- Version conflict: server now manages its own authoritative version counter
-- Echo loop: replaced `requestAnimationFrame` flag with content fingerprinting in `Board.tsx`
+## What was fixed
+- **Render deploy:** added `index.js` entry point (Render ran `node index.js` but only `server.js` existed)
+- **Version conflict:** server now manages authoritative version counter instead of rejecting lower-version updates from late-joining clients
+- **Echo loop:** frontend replaced `requestAnimationFrame` flag with content fingerprinting in `Board.tsx`
+- **Read-only bug:** fingerprint approach fixed the issue where a 2nd user joining made the board read-only for all users
 
-## How to deploy changes
+## Known issue (open)
+Concurrent draws from two users may conflict — last-writer-wins on the server (no CRDT). Root cause area: `handleChange` fingerprinting in `Board.tsx` prevents echo but doesn't resolve write conflicts.
+
+## How to deploy
 - **Backend:** push to `master` → Render auto-deploys
-- **Frontend:** run `vercel --prod --yes` from `~/Desktop/team-board` (needs Node 20 via nvm)
+- **Frontend:** `vercel --prod --yes` from `~/Desktop/team-board` (needs Node 20 via nvm)
